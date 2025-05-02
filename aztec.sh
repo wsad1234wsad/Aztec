@@ -82,7 +82,7 @@ install_docker_compose() {
     print_info "未找到 Docker Compose，正在安装..."
   fi
 
-  curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" \
+  curl -L --http1.1 "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" \
     -o /usr/local/bin/docker-compose
   chmod +x /usr/local/bin/docker-compose
 }
