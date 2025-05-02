@@ -67,11 +67,12 @@ install_docker() {
   install_package "docker-ce docker-ce-cli containerd.io"
 }
 
-# 检查并安装 Docker Compose
+# 检查并安装 Docker Compose（适配 v2）
 install_docker_compose() {
-  if check_command docker-compose; then
+  # 检测 Docker Compose v2
+  if check_command docker && docker compose version &> /dev/null; then
     local version
-    version=$(docker-compose --version | grep -oP '\d+\.\d+\.\d+' || echo "0.0.0")
+    version=$(docker compose version --short | grep -oP '\d+\.\d+\.\d+' || echo "0.0.0")
     if version_ge "$version" "$MIN_COMPOSE_VERSION"; then
       print_info "Docker Compose 已安装，版本 $version，满足要求（>= $MIN_COMPOSE_VERSION）。"
       return
@@ -82,9 +83,18 @@ install_docker_compose() {
     print_info "未找到 Docker Compose，正在安装..."
   fi
 
-  curl -L --http1.1 "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" \
-    -o /usr/local/bin/docker-compose
-  chmod +x /usr/local/bin/docker-compose
+  # 安装 Docker Compose v2（插件形式）
+  print_info "安装 Docker Compose v2..."
+  mkdir -p /usr/libexec/docker/cli-plugins
+  curl -SL "https://ghproxy.com/https://github.com/docker/compose/releases/download/v2.35.1/docker-compose-linux-x86_64" \
+    -o /usr/libexec/docker/cli-plugins/docker-compose
+  chmod +x /usr/libexec/docker/cli-plugins/docker-compose
+
+  # 验证安装
+  if ! docker compose version &> /dev/null; then
+    echo "Docker Compose 安装失败！"
+    exit 1
+  fi
 }
 
 # 检查并安装 Node.js
@@ -114,7 +124,7 @@ install_aztec_cli() {
     exit 1
   fi
 
-  aztec-up alpha-testnet
+  aztec-up alpha-testnet &> /dev/null
 }
 
 # 验证 RPC URL 格式（简单检查是否以 http:// 或 https:// 开头）
@@ -136,6 +146,7 @@ main() {
   install_aztec_cli
 
   # 获取用户输入
+  print_info ""
   print_info "获取 RPC URL 的说明："
   print_info "  - L1 执行客户端（EL）RPC URL："
   print_info "    1. 在 https://dashboard.alchemy.com/ 获取 Sepolia 的 RPC (http://xxx)"
@@ -144,9 +155,9 @@ main() {
   print_info "    1. 在 https://drpc.org/ 获取 Sepolia 的 RPC (http://xxx)"
   print_info ""
 
-  read -p " L1 执行客户端（EL）RPC URL： " ETH_RPC
-  read -p " L1 共识（CL）RPC URL： " CONS_RPC
-  read -p " 验证者私钥： " VALIDATOR_PRIVATE_KEY
+  read -p " L1 执行客户端（EL）RPC URL：" ETH_RPC
+  read -p " L1 共识（CL）RPC URL：" CONS_RPC
+  read -p " 验证者私钥：" VALIDATOR_PRIVATE_KEY
   BLOB_URL="" # 默认跳过 Blob Sink URL
 
   # 验证输入
@@ -208,16 +219,16 @@ EOF
   # 创建数据目录
   mkdir -p "$DATA_DIR"
 
-  # 启动节点
-  print_info "启动 Aztec 全节点 (docker-compose up -d)..."
-  if ! docker-compose up -d; then
-    echo "启动 Aztec 节点失败，请检查 docker-compose logs。"
+  # 启动节点（使用 Docker Compose v2 命令）
+  print_info "启动 Aztec 全节点 (docker compose up -d)..."
+  if ! docker compose up -d; then
+    echo "启动 Aztec 节点失败，请检查日志：docker compose logs"
     exit 1
   fi
 
   # 完成
   print_info "安装和启动完成！"
-  print_info "  - 查看日志：docker-compose logs -f"
+  print_info "  - 查看日志：docker compose logs -f"
   print_info "  - 数据目录：$DATA_DIR"
 }
 
